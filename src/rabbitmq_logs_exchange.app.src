@@ -1,0 +1,6 @@
+{application, rabbitmq_logs_exchange,
+ [{description, "RabbitMQ Logs Exchange"},
+  {vsn, "0.0.1"},
+  {modules, []},
+  {registered, []},
+  {applications, [kernel, stdlib, rabbit, mnesia, bson, crypto, mongodb]}]}.
