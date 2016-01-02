@@ -1,6 +1,18 @@
 {application, rabbitmq_logs_exchange,
  [{description, "RabbitMQ Logs Exchange"},
-  {vsn, "0.0.1"},
+  {vsn, "0.0.2"},
   {modules, []},
   {registered, []},
-  {applications, [kernel, stdlib, rabbit, mnesia, bson, crypto, mongodb]}]}.
+  {env, [{mongodb_pool,
+          {logs_exchange_mongodb_pool,
+           [
+            {size, 10},
+            {max_overflow, 30}
+           ],
+           [
+            {database, <<"rabbimq_logs">>},
+            {w_mode, safe}
+           ]}
+         }
+        ]},
+  {applications, [kernel, stdlib, rabbit, mnesia, bson, crypto, mongodb, mongodb_pool]}]}.
