@@ -10,47 +10,107 @@
 -export([description/0, serialise_events/0, route/2]).
 -export([validate/1, validate_binding/2, create/2, delete/3, add_binding/3,
          remove_bindings/3, assert_args_equivalence/2, policy_changed/2]).
-%% -export([disable_plugin/0]).
+
+-export([enable_plugin/0, disable_plugin/0]).
 
 -rabbit_boot_step({?MODULE,
                    [{description, "exchange type x-logs"},
-                    {mfa, {rabbit_registry, register,
-                           [exchange, <<"x-logs">>, ?MODULE]}},
+                    {mfa, {?MODULE, enable_plugin,
+                           []}},
                     {cleanup, {?MODULE, disable_plugin, []}},
                     {requires, rabbit_registry},
                     {enables, kernel_ready}]}).
 
--define(INTEGER_ARG_TYPES, [byte, short, signedint, long]).
+-define(EXCHANGE(Ex), (exchange_module(Ex))).
+-define(MONGODB_POOL(), (mongodb_pool_name())).
+
 
 description() ->
-    [{name, <<"x-logs">>},
-     {description, <<"Recent Logs.">>}].
+  [{name, <<"x-logs">>},
+   {description, <<"This exchange logs every message to mongodb.">>}].
 
+enable_plugin() ->
+  application:ensure_started(bson),
+  application:ensure_started(crypto),
+  application:ensure_started(mongodb),
+  application:ensure_started(poolboy),
+  application:ensure_started(mongodb_pool),
+  {PoolName, PoolSize, ConnSpec} = mongodb_pool_spec(),
+  io:format("Pool Name: ~p", [PoolName]),
+  mongodb_pool:create_pool(local,PoolSize,PoolName,ConnSpec),
+  rabbit_registry:register(exchange, <<"x-logs">>, ?MODULE).
+
+disable_plugin() ->
+ %% mongodb_pool:delete_pool(?MONGODB_POOL()),
+  %% probably should also stop related apps
+  false.
+
+route(X = #exchange{name = #resource{name = XName}},
+      Delivery = #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
+                                                                       properties = #'P_basic'{message_id = MessageId}}}}) ->
+  mongodb_pool:insert(?MONGODB_POOL(), XName, [
+                                               {<<"exchange">>, XName,
+                                                <<"exchange_type">>, exchange_type(X),
+                                                <<"content">>, binary:bin_to_list(concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
+                                                <<"message_id">>, MessageId}
+                                              ]),
+  %% route the message using proxy module
+  ?EXCHANGE(X):route(X, Delivery).
+
+validate(#exchange{arguments = Args} = X) ->
+  case table_lookup(Args, <<"x-exchange-type">>) of
+    {_ArgType, <<"x-exchange-type">>} ->
+      rabbit_misc:protocol_error(precondition_failed,
+                                 "Invalid argument, "
+                                 "'x-exchange-type' can't be used "
+                                 "for 'x-exchange-type'",
+                                 []);
+    {_ArgType, Type} when is_binary(Type) ->
+      rabbit_exchange:check_type(Type),
+      ?EXCHANGE(X):validate(X);
+    _ ->
+      rabbit_misc:protocol_error(precondition_failed,
+                                 "Invalid argument, "
+                                 "'x-exchange-type' must be "
+                                 "an existing exchange type",
+                                 [])
+  end.
+
+validate_binding(X, B) ->
+  ?EXCHANGE(X):validate_binding(X, B).
+create(Tx, X) ->
+  ?EXCHANGE(X):create(Tx, X).
+delete(Tx, X, Bs) ->
+  ?EXCHANGE(X):delete(Tx, X, Bs).
+policy_changed(X1, X2) ->
+  ?EXCHANGE(X1):policy_changed(X1, X2).
+add_binding(Tx, X, B) ->
+  ?EXCHANGE(X):add_binding(Tx, X, B).
+remove_bindings(Tx, X, Bs) ->
+  ?EXCHANGE(X):remove_bindings(Tx, X, Bs).
+assert_args_equivalence(X, Args) ->
+  ?EXCHANGE(X):assert_args_equivalence(X, Args).
 serialise_events() -> false.
 
-route(#exchange{name      =#resource{name = XName},
-                arguments = Args},
-      #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
-                                                            properties = #'P_basic'{message_id = MessageId}}}}) ->
-  {ok, Connection} = mongo:connect ([{database, <<"rabbit_logs">>}]),
-  mongo:insert(Connection, XName, [
-                            {<<"origin">>, XName,
-                             <<"x">>, table_lookup(Args, <<"alternate-exchange">>),
-                             <<"content">>, concatenate_binaries(lists:reverse(PayloadFragmentsRev)),
-                             <<"message_id">>, MessageId}
-                           ]),
-  [].
+%% assumes the type is set in the args and that validate/1 did its job
+exchange_module(Ex) ->
+  T = rabbit_registry:binary_to_type(exchange_type(Ex)),
+  {ok, M} = rabbit_registry:lookup_module(exchange, T),
+  M.
 
-validate(_X) -> ok.
-  
-validate_binding(_X, _B) -> ok.
-create(_Tx, _X) -> ok.
-delete(_Tx, _X, _Bs) -> ok.
-policy_changed(_X1, _X2) -> ok.
-add_binding(_Tx, _X, _B) -> ok.
-remove_bindings(_Tx, _X, _Bs) -> ok.
-assert_args_equivalence(X, Args) ->
-  rabbit_exchange:assert_args_equivalence(X, Args).
+exchange_type(#exchange{arguments = Args}) ->
+  case table_lookup(Args, <<"x-exchange-type">>) of
+    {_ArgType, Type} -> Type;
+    _ -> error
+  end.
+
+mongodb_pool_spec()->
+  {ok, Pool} = application:get_env(rabbitmq_logs_exchange, mongodb_pool),
+  Pool.
+
+mongodb_pool_name()->
+  {PoolName,_,_} = mongodb_pool_spec(),
+  PoolName.
 
 -spec concatenate_binaries([binary()]) -> binary().
 concatenate_binaries([]) ->

@@ -1,7 +1,7 @@
 PROJECT = rabbitmq_logs_exchange
 
-DEPS = rabbit mongodb # mongodb_pool
-#dep_mongodb_pool = git https://github.com/deadtrickster/mongodb-erlang-pool master
+DEPS = rabbit mongodb mongodb_pool
+dep_mongodb_pool = git https://github.com/deadtrickster/mongodb-erlang-pool master
 TEST_DEPS = amqp_client
 
 DEP_PLUGINS = rabbit_common/mk/rabbitmq-plugin.mk
