@@ -37,7 +37,7 @@ Corresponding MongoDB document:
 ## Configuration
 
 This plugin can be configured as any other RabbitMQ plugin. It expects its configuration to be available
-under `rabbitmq_logs_exchange` application name. Right now it looks only for mongodb related parameter i.e. `mongodb_pool` configuration.
+under `rabbitmq_logs_exchange` application name. Right now it looks only for mongodb related parameter i.e. [`mongodb_pool`](https://github.com/deadtrickster/mongodb-erlang-pool) configuration.
 
 Default configuration:
 
