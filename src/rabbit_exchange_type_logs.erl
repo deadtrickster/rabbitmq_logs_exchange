@@ -36,10 +36,13 @@ enable_plugin() ->
   application:ensure_started(mongodb_pool),
   {PoolName, PoolSize, ConnSpec} = mongodb_pool_spec(),
   mongodb_pool:create_pool(local,PoolSize,PoolName,ConnSpec),
+  rabbit_registry:register(channel_interceptor, <<"message_id_interceptor">>, rabbit_message_id_interceptor),
   rabbit_registry:register(exchange, <<"x-logs">>, ?MODULE).
 
 disable_plugin() ->
-  %% mongodb_pool:delete_pool(?MONGODB_POOL()),
+  ongodb_pool:delete_pool(?MONGODB_POOL()),
+  rabbit_registry:unregister(exchange, <<"x-logs">>),
+  rabbit_registry:unregister(channel_interceptor, <<"message_id_interceptor">>),
   %% probably should also stop related apps
   false.
 
@@ -55,8 +58,16 @@ preprocess_content(_, Content) ->
 
 route(X = #exchange{name = #resource{name = XName}},
       Delivery = #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
-                                                                       properties = Props}}}) ->
-  #'P_basic'{content_type = ContentType} = Props,
+                                                                       properties = #'P_basic'{content_type = ContentType} = Props}}}) ->
+  %% Delivery1 = case MessageId of
+  %%               undefined ->
+  %%                 Props2 = Props#'P_basic'{message_id = rabbit_guid:binary(rabbit_guid:gen_secure(), "amq.mid")},
+  %%                 %% we need to reset properties_bin = none so the new properties
+  %%                 %% get serialized when deliverying the message.
+  %%                 Delivery#delivery{message = Message#basic_message{content = Content#content{properties = Props2, properties_bin = none}}};
+  %%               _ ->
+  %%                 Delivery
+  %%             end,
   mongodb_pool:insert(?MONGODB_POOL(), XName, [
                                                {<<"exchange">>, XName,
                                                 <<"exchange_type">>, exchange_type(X),
