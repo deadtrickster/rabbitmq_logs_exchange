@@ -1,6 +1,6 @@
 The MIT License
 
-Copyright (c) 2015 Ilya Khaprov <ilya.khaprov@publitechs.com>
+Copyright (c) 2015,2016 Ilya Khaprov <ilya.khaprov@publitechs.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
