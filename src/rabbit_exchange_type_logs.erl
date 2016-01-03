@@ -39,19 +39,19 @@ enable_plugin() ->
   rabbit_registry:register(exchange, <<"x-logs">>, ?MODULE).
 
 disable_plugin() ->
- %% mongodb_pool:delete_pool(?MONGODB_POOL()),
+  %% mongodb_pool:delete_pool(?MONGODB_POOL()),
   %% probably should also stop related apps
   false.
 
 route(X = #exchange{name = #resource{name = XName}},
       Delivery = #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
-                                                                       properties = #'P_basic'{message_id = MessageId}}}}) ->
+                                                                       properties = Props}}}) ->
   mongodb_pool:insert(?MONGODB_POOL(), XName, [
                                                {<<"exchange">>, XName,
                                                 <<"exchange_type">>, exchange_type(X),
                                                 <<"timestamp">>, os:timestamp(),
                                                 <<"content">>, binary:bin_to_list(concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
-                                                <<"message_id">>, MessageId}
+                                                <<"properties">>, basic_properties_to_bson(Props)}
                                               ]),
   %% route the message using proxy module
   ?EXCHANGE(X):route(X, Delivery).
@@ -110,6 +110,94 @@ mongodb_pool_spec()->
 mongodb_pool_name()->
   {PoolName,_,_} = mongodb_pool_spec(),
   PoolName.
+
+amqp_timestamp_to_bson(Timestamp) ->
+  {Timestamp div 1000000,
+   Timestamp div 1000000 rem 1000000,
+   0}.
+
+amqp_field_to_bson(longstr, Value)->
+  Value;
+amqp_field_to_bson(signedint, Value) ->
+  Value;
+amqp_field_to_bson(decimal, {Scale, Value}) ->
+  Value / math:pow(10, Scale);
+amqp_field_to_bson(timestamp, Value) ->
+  amqp_timestamp_to_bson(Value);
+amqp_field_to_bson(unsignedbyte, Value) ->
+  Value;
+amqp_field_to_bson(unsignedshort, Value) ->
+  Value;
+amqp_field_to_bson(unsignedint, Value) ->
+  Value;
+amqp_field_to_bson(table, Value) ->
+  amqp_table_to_bson(Value);
+amqp_field_to_bson(byte, Value) ->
+  Value;
+amqp_field_to_bson(double, Value) ->
+  Value;
+amqp_field_to_bson(float, Value) ->
+  Value;
+amqp_field_to_bson(long, Value) ->
+  Value;
+amqp_field_to_bson(short, Value) ->
+  Value;
+amqp_field_to_bson(bool, Value) ->
+  Value;
+amqp_field_to_bson(binary, Value) ->
+  binary:bin_to_list(Value); %% bytes array
+amqp_field_to_bson(void, _) ->
+  null;
+amqp_field_to_bson(array, Value) ->
+  amqp_array_to_bson(Value).
+
+amqp_array_to_bson([], Acc) ->
+  Acc;
+amqp_array_to_bson([Item|Rest], Acc) ->
+  {TypeBin, ValueBin} = Item,
+  amqp_array_to_bson(Rest, Acc++[amqp_field_to_bson(TypeBin, ValueBin)]).
+
+amqp_array_to_bson(Array) ->
+  amqp_array_to_bson(Array, []).
+
+amqp_table_to_bson([], Acc) ->
+  Acc;
+amqp_table_to_bson([Field|Rest], Acc) ->
+  {Key, TypeBin, ValueBin} = Field,
+  amqp_table_to_bson(Rest, Acc++[{Key, amqp_field_to_bson(TypeBin, ValueBin)}]).
+
+amqp_table_to_bson(Table) ->
+  amqp_table_to_bson(Table, []).
+
+basic_properties_to_bson(#'P_basic'{content_type = ContentType,
+                                    content_encoding = ContentEncoding,
+                                    headers = Headers,
+                                    delivery_mode = DeliveryMode,
+                                    priority = Priority,
+                                    correlation_id = CorrelationId,
+                                    reply_to = ReplyTo,
+                                    expiration = Expiration,
+                                    message_id = MessageId,
+                                    timestamp = Timestamp,
+                                    type = Type,
+                                    user_id = UserId,
+                                    app_id = AppId,
+                                    cluster_id = ClusterId}) ->
+
+  {<<"content_type">>, ContentType,
+   <<"content_encoding">>, ContentEncoding,
+   <<"headers">>, amqp_table_to_bson(Headers),
+   <<"delivery_mode">>, DeliveryMode,
+   <<"priority">>, Priority,
+   <<"correlation_id">>, CorrelationId,
+   <<"reply_to">>, ReplyTo,
+   <<"expiration">>, Expiration,
+   <<"message_id">>, MessageId,
+   <<"timestamp">>, amqp_timestamp_to_bson(Timestamp),
+   <<"type">>, Type,
+   <<"user_id">>, UserId,
+   <<"app_id">>, AppId,
+   <<"cluster_id">>, ClusterId}.
 
 -spec concatenate_binaries([binary()]) -> binary().
 concatenate_binaries([]) ->
