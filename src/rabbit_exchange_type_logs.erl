@@ -111,10 +111,12 @@ mongodb_pool_name()->
   {PoolName,_,_} = mongodb_pool_spec(),
   PoolName.
 
-amqp_timestamp_to_bson(Timestamp) ->
+amqp_timestamp_to_bson(Timestamp) when is_integer(Timestamp) ->
   {Timestamp div 1000000,
    Timestamp div 1000000 rem 1000000,
-   0}.
+   0};
+amqp_timestamp_to_bson(undefined) ->
+  null.
 
 amqp_field_to_bson(longstr, Value)->
   Value;
@@ -166,8 +168,11 @@ amqp_table_to_bson([Field|Rest], Acc) ->
   {Key, TypeBin, ValueBin} = Field,
   amqp_table_to_bson(Rest, Acc++[{Key, amqp_field_to_bson(TypeBin, ValueBin)}]).
 
-amqp_table_to_bson(Table) ->
-  amqp_table_to_bson(Table, []).
+amqp_table_to_bson(Table) when is_list(Table) ->
+  amqp_table_to_bson(Table, []);
+amqp_table_to_bson(undefined) ->
+  null.
+
 
 basic_properties_to_bson(#'P_basic'{content_type = ContentType,
                                     content_encoding = ContentEncoding,
