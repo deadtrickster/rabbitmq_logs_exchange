@@ -43,14 +43,25 @@ disable_plugin() ->
   %% probably should also stop related apps
   false.
 
+preprocess_content(<<"application/bson">>, Content) ->
+  {Doc,_} = bson_binary:get_document(Content),
+  Doc;
+preprocess_content(<<"application/json">>, Content) ->
+  json:from_binary(Content);
+preprocess_content(<<"text/", _/binary>>, Content) ->
+  Content;
+preprocess_content(_, Content) ->
+  binary:bin_to_list(Content). %% just bytes array
+
 route(X = #exchange{name = #resource{name = XName}},
       Delivery = #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
                                                                        properties = Props}}}) ->
+  #'P_basic'{content_type = ContentType} = Props,
   mongodb_pool:insert(?MONGODB_POOL(), XName, [
                                                {<<"exchange">>, XName,
                                                 <<"exchange_type">>, exchange_type(X),
                                                 <<"timestamp">>, os:timestamp(),
-                                                <<"content">>, binary:bin_to_list(concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
+                                                <<"content">>, preprocess_content(ContentType, concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
                                                 <<"properties">>, basic_properties_to_bson(Props)}
                                               ]),
   %% route the message using proxy module
