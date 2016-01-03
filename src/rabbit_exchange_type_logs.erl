@@ -49,6 +49,7 @@ route(X = #exchange{name = #resource{name = XName}},
   mongodb_pool:insert(?MONGODB_POOL(), XName, [
                                                {<<"exchange">>, XName,
                                                 <<"exchange_type">>, exchange_type(X),
+                                                <<"timestamp">>, os:timestamp(),
                                                 <<"content">>, binary:bin_to_list(concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
                                                 <<"message_id">>, MessageId}
                                               ]),
