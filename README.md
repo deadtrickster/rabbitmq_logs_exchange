@@ -29,6 +29,7 @@ Corresponding MongoDB document:
   "_id" : ObjectId("56880cdbe72f45050f000006"),
   "exchange" : "hmm",
   "exchange_type" : "direct",
+  "timestamp" : ISODate("2016-01-03T09:04:33.601Z"),
   "content" : [ 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33 ],
   "message_id" : "message-id"
 }
