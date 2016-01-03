@@ -9,13 +9,36 @@ Exchange Type: `x-logs`
 ```lisp
 (bunny:with-connection ()
   (bunny:with-channel ()
-    (let ((x (bunny:exchange.declare "hmm" :type "x-logs"
-                                           :arguments '(("x-exchange-type" . "direct"))
-                                           :auto-delete t))
-          (q (bunny:queue.declare-temp)))
+    (let ((x (bunny:exchange.declare "hmm" :type "x-logs" :auto-delete t :arguments '(("x-exchange-type" . "direct"))))
+          (q (bunny:queue.declare-temp))
+          (now (local-time:now)))
       (bunny:queue.bind q x :routing-key q)
       (bunny:subscribe-sync q)
-      (bunny:publish x "Hello World!" :routing-key q :properties '(:message-id "message-id"))
+      ;(bunny:publish x "Hello World!" :routing-key q :properties '(:message-id "message-id" :content-type "text/plain"))
+      (bunny:publish x "Hello World!" :routing-key q
+                                      :properties `(:content-type "text/plain"
+                                                    :content-encoding "utf-8"
+                                                    :headers (("coordinates" . (("lat" . 59.35)
+                                                                                ("lng" . 18.066667d0)))
+                                                              ("time" . ,now)
+                                                              ("participants" . 11)
+                                                              ("i64_field" . 99999999999)
+                                                              ("true_field" . t)
+                                                              ("false_field" . nil)
+                                                              ("void_field" . :void)
+                                                              ("array_field" . #(1 2 3))
+                                                              ("decimal_field" . #$1.2))
+                                                    :persistent t
+                                                    :priority 8
+                                                    :correlation-id "r-1"
+                                                    :reply-to "a.sender"
+                                                    :expiration "2000"
+                                                    :message-id "m-1"
+                                                    :timestamp ,now
+                                                    :type "dog-or-cat?"
+                                                    :user-id "guest"
+                                                    :app-id "cl-bunny.tests"
+                                                    :cluster-id "qwe"))
       (bunny:consume :one-shot t))))
       
 => 
@@ -26,13 +49,67 @@ Corresponding MongoDB document:
 
 ```javascript
 {
-  "_id" : ObjectId("56880cdbe72f45050f000006"),
-  "exchange" : "hmm",
-  "exchange_type" : "direct",
-  "timestamp" : ISODate("2016-01-03T09:04:33.601Z"),
-  "content" : [ 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33 ],
-  "message_id" : "message-id"
-}
+  "_id":ObjectId("5688fc87e72f458e1e000001"),
+  "exchange":"hmm",
+  "exchange_type":"direct",
+  "timestamp": ISODate("2016-01-03T10:48:39.863Z"),
+  "content":[72,101,108,108,111,32,87,111,114,108,100,33],
+  "properties":{
+    "content_type":"text/plain",
+    "content_encoding":"utf-8",
+    "headers":[
+      {
+        "coordinates":[
+          {
+            "lat":59.349998474121094
+          },
+          {
+            "lng":18.066667
+          }
+        ]
+      },
+      {
+        "time": ISODate("2015-12-24T23:57:31Z")
+      },
+      {
+        "participants":11
+      },
+      {
+        "i64_field":NumberLong("99999999999")
+      },
+      {
+        "true_field":true
+      },
+      {
+        "false_field":false
+      },
+      {
+        "void_field":null
+      },
+      {
+        "array_field":[
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "decimal_field":1.2
+      }
+    ],
+    "delivery_mode":2,
+    "priority":8,
+    "correlation_id":"r-1",
+    "reply_to":"a.sender",
+    "expiration":"2000",
+    "message_id":"m-1",
+    "timestamp": ISODate("2015-12-24T23:57:31Z"),
+    "type":"dog-or-cat?",
+    "user_id":"guest",
+    "app_id":"cl-bunny.tests",
+    "cluster_id":"qwe"
+  }
+  }
 ```
 
 ## Configuration
