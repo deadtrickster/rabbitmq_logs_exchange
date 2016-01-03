@@ -4,6 +4,9 @@ Saves message to MongoDB before routing. Routes messages transparently using exc
 
 Exchange Type: `x-logs`
 
+This plugin also includes channel interceptor which generates message_id for messages
+published to `x-logs` exchanges if not already set.
+
 ## Content-type handling
 
 * `application/bson` - while not official this still can be used - content parsed to BSON
@@ -24,8 +27,7 @@ All other content-types including undefined stored as byte-arrays.
           (text "Hello World!"))
       (bunny:queue.bind q x :routing-key q)
       (bunny:subscribe-sync q)
-      (bunny:publish x text :routing-key q :properties '(:message-id "message-id"
-                                                         :content-type "text/plain"))
+      (bunny:publish x text :routing-key q :properties '(:content-type "text/plain"))
       (bunny:consume :one-shot t))))
 ```
 
@@ -47,7 +49,7 @@ Corresponding MongoDB document
     "correlation_id":null,
     "reply_to":null,
     "expiration":null,
-    "message_id":"message-id",
+    "message_id":"amq.mid-iVGYar8yAhEY37AaSMRRUw",
     "timestamp":null,
     "type":null,
     "user_id":null,
