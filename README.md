@@ -62,10 +62,10 @@ Corresponding MongoDB document
     "type":null,
     "user_id":null,
     "app_id":null,
-    "cluster_id":null,
-    "state":"added",
-    "homer":"simpson"
-  }
+    "cluster_id":null
+  },
+  "state":"added",
+  "homer":"simpson"
 }
 ```
 
