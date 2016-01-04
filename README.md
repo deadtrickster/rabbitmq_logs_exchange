@@ -4,7 +4,7 @@ Saves message to MongoDB before routing. Routes messages transparently using exc
 
 Exchange Type: `x-logs`
 
-This plugin also includes channel interceptor which generates message_id for messages
+This plugin also includes channel interceptor that generates message_id for messages
 published to `x-logs` exchanges if not already set.
 
 ## Content-type handling
@@ -15,14 +15,22 @@ published to `x-logs` exchanges if not already set.
 
 All other content-types including undefined stored as byte-arrays.
 
+## Custom fields
+
+Exchange-wide custom fields can be added using `x-custom-fields` key. The value is expected to be AMQP table.
+
 ## Examples
 
-### Content-type: text/*
+### Content-type: text/* with custom fields
 
 ```lisp
 (bunny:with-connection ()
   (bunny:with-channel ()
-    (let ((x (bunny:exchange.declare "hmm" :type "x-logs" :auto-delete t :arguments '(("x-exchange-type" . "direct"))))
+    (let ((x (bunny:exchange.declare "hmm2" :type "x-logs"
+                                            :auto-delete t
+                                            :arguments '(("x-exchange-type" . "direct")
+                                                         ("x-custom-fields" . (("state" . "added")
+                                                                               ("homer" . "simpson"))))))
           (q (bunny:queue.declare-temp))
           (text "Hello World!"))
       (bunny:queue.bind q x :routing-key q)
@@ -54,7 +62,9 @@ Corresponding MongoDB document
     "type":null,
     "user_id":null,
     "app_id":null,
-    "cluster_id":null
+    "cluster_id":null,
+    "state":"added",
+    "homer":"simpson"
   }
 }
 ```
@@ -66,7 +76,7 @@ Corresponding MongoDB document
   (bunny:with-channel ()
     (let ((x (bunny:exchange.declare "hmm" :type "x-logs" :auto-delete t :arguments '(("x-exchange-type" . "direct"))))
           (q (bunny:queue.declare-temp))
-          (json "{\"name\":\"Homer\", \"age\":32}"))
+          (json "{\"name\":\"Homer\", \"age\":33}"))
       (bunny:queue.bind q x :routing-key q)
       (bunny:subscribe-sync q)
       (bunny:publish x json :routing-key q :properties '(:message-id "message-id"
