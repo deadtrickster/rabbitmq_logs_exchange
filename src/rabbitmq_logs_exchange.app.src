@@ -10,7 +10,7 @@
             {max_overflow, 30}
            ],
            [
-            {database, <<"rabbimq_logs">>},
+            {database, <<"rabbitmq_logs">>},
             {w_mode, safe}
            ]}
          }
