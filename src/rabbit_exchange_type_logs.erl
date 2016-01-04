@@ -68,17 +68,18 @@ route(X = #exchange{name = #resource{name = XName}},
   %%               _ ->
   %%                 Delivery
   %%             end,
-  mongodb_pool:insert(?MONGODB_POOL(), XName, [
-                                               {<<"exchange">>, XName,
-                                                <<"exchange_type">>, exchange_type(X),
-                                                <<"timestamp">>, os:timestamp(),
-                                                <<"content">>, preprocess_content(ContentType, concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
-                                                <<"properties">>, basic_properties_to_bson(Props)}
-                                              ]),
+  Document = {<<"exchange">>, XName,
+              <<"exchange_type">>, exchange_type(X),
+              <<"timestamp">>, os:timestamp(),
+              <<"content">>, preprocess_content(ContentType, concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
+              <<"properties">>, basic_properties_to_bson(Props)},
+  Document1 = maybe_merge_with_custom_fields(Document, X),
+
+  mongodb_pool:insert(?MONGODB_POOL(), XName, [Document1]),
   %% route the message using proxy module
   ?EXCHANGE(X):route(X, Delivery).
 
-validate(#exchange{arguments = Args} = X) ->
+validate_x_exchange_type(#exchange{arguments = Args} = X) ->
   case table_lookup(Args, <<"x-exchange-type">>) of
     {_ArgType, <<"x-exchange-type">>} ->
       rabbit_misc:protocol_error(precondition_failed,
@@ -96,6 +97,24 @@ validate(#exchange{arguments = Args} = X) ->
                                  "an existing exchange type",
                                  [])
   end.
+
+validate_x_custom_fields(#exchange{arguments = Args}) ->
+  case table_lookup(Args, <<"x-custom-fields">>) of
+    undefined ->
+      ok;
+    {table, _CustomFields} ->
+      ok;
+    _ ->
+      rabbit_misc:protocol_error(precondition_failed,
+                                 "Invalid argument, "
+                                 "'x-custom-fields' must be "
+                                 "table or undefined",
+                                 [])
+  end.
+
+validate(X) ->
+  validate_x_exchange_type(X),
+  validate_x_custom_fields(X).
 
 validate_binding(X, B) ->
   ?EXCHANGE(X):validate_binding(X, B).
@@ -123,6 +142,15 @@ exchange_type(#exchange{arguments = Args}) ->
   case table_lookup(Args, <<"x-exchange-type">>) of
     {_ArgType, Type} -> Type;
     _ -> error
+  end.
+
+maybe_merge_with_custom_fields(Document, #exchange{arguments = Args}) ->
+  case table_lookup(Args, <<"x-custom-fields">>) of
+    {table, CustomFieldsTable} ->
+      CustomFieldsDoc = amqp_table_to_bson(CustomFieldsTable),
+      bson:merge(CustomFieldsDoc, Document);
+    undefined ->
+      Document
   end.
 
 mongodb_pool_spec()->
@@ -185,10 +213,10 @@ amqp_array_to_bson(Array) ->
   amqp_array_to_bson(Array, []).
 
 amqp_table_to_bson([], Acc) ->
-  Acc;
+  list_to_tuple(Acc);
 amqp_table_to_bson([Field|Rest], Acc) ->
   {Key, TypeBin, ValueBin} = Field,
-  amqp_table_to_bson(Rest, Acc++[{Key, amqp_field_to_bson(TypeBin, ValueBin)}]).
+  amqp_table_to_bson(Rest, Acc++[Key, amqp_field_to_bson(TypeBin, ValueBin)]).
 
 amqp_table_to_bson(Table) when is_list(Table) ->
   amqp_table_to_bson(Table, []);
