@@ -58,7 +58,8 @@ preprocess_content(_, Content) ->
 
 route(X = #exchange{name = #resource{name = XName}},
       Delivery = #delivery{message = #basic_message{content = #content{payload_fragments_rev = PayloadFragmentsRev,
-                                                                       properties = #'P_basic'{content_type = ContentType} = Props}}}) ->
+                                                                       properties = #'P_basic'{content_type = ContentType} = Props},
+                                                   routing_keys = RoutingKeys}}) ->
   %% Delivery1 = case MessageId of
   %%               undefined ->
   %%                 Props2 = Props#'P_basic'{message_id = rabbit_guid:binary(rabbit_guid:gen_secure(), "amq.mid")},
@@ -68,11 +69,15 @@ route(X = #exchange{name = #resource{name = XName}},
   %%               _ ->
   %%                 Delivery
   %%             end,
+  Timestamp = os:timestamp(),
   Document = {<<"exchange">>, XName,
               <<"exchange_type">>, exchange_type(X),
-              <<"timestamp">>, os:timestamp(),
+              <<"routing_keys">>, RoutingKeys,
+              <<"timestamp">>, Timestamp,
               <<"content">>, preprocess_content(ContentType, concatenate_binaries(lists:reverse(PayloadFragmentsRev))),
-              <<"properties">>, basic_properties_to_bson(Props)},
+              <<"properties">>, basic_properties_to_bson(Props),
+              <<"events">>, [{<<"event">>, <<"added">>, <<"timestamp">>, Timestamp}],
+              <<"state">>, <<"added">>},
   Document1 = maybe_merge_with_custom_fields(Document, X),
 
   mongodb_pool:insert(?MONGODB_POOL(), XName, [Document1]),
