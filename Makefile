@@ -5,7 +5,11 @@ dep_mongodb_pool = git https://github.com/deadtrickster/mongodb-erlang-pool mast
 dep_json = git https://github.com/talentdeficit/json master
 TEST_DEPS = amqp_client
 
-DEP_PLUGINS = rabbit_common/mk/rabbitmq-plugin.mk
+DEP_PLUGINS = rabbit_common/mk/rabbitmq-build.mk \
+	      rabbit_common/mk/rabbitmq-dist.mk \
+	      rabbit_common/mk/rabbitmq-run.mk \
+	      rabbit_common/mk/rabbitmq-test.mk \
+	      rabbit_common/mk/rabbitmq-tools.mk
 
 # FIXME: Use erlang.mk patched for RabbitMQ, while waiting for PRs to be
 # reviewed and merged.
@@ -16,11 +20,4 @@ ERLANG_MK_COMMIT = rabbitmq-tmp
 include rabbitmq-components.mk
 include erlang.mk
 
-# --------------------------------------------------------------------
-# Testing.
-# --------------------------------------------------------------------
-
-WITH_BROKER_TEST_MAKEVARS := \
-        RABBITMQ_CONFIG_FILE=$(CURDIR)/etc/rabbit-test
-WITH_BROKER_TEST_COMMANDS := \
-	rabbit_exchange_type_recent_history_test:test()
+NO_AUTOPATCH = 0
